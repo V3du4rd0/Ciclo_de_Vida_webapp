@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Impresión 3D - Proyecto</title>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='example_style.css') }}">
+
+<style>
+#demandSection { margin-top:40px; border-top:2px solid #ccc; padding-top:20px; }
+#demandTable { width:100%; border-collapse:collapse; margin-top:10px; }
+#demandTable th, #demandTable td { border:1px solid #ddd; padding:6px 10px; }
+#demandTable th { background:#f0f0f0; }
+</style>
+</head>
+
+<body>
+
+<h2>Inventario</h2>
+
+<div>
+<label><b>Nombre del proyecto:</b></label>
+<input type="text" id="projectName" value="Fabricación y Transporte de Velaria">
+</div>
+
+<div id="processesContainer"></div>
+
+<button onclick="addProcess()">Nuevo proceso</button>
+
+<div id="status"></div>
+
+<div id="demandSection">
+<h3>Vector de Demanda</h3>
+<table id="demandTable">
+<thead>
+<tr>
+<th>Proceso</th>
+<th>Descripción</th>
+<th>UDS</th>
+<th>Cantidad deseada</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+</div>
+
+<br>
+
+  <button id="saveBtn" onclick="saveTable()">
+    <img src="{{ url_for('static', filename='assets/save.png') }}"
+         alt="Guardar"
+         class="btn-icon">
+    Guardar
+  </button>
+
+  <button id="displayBtn" disabled onclick="goToResults()">
+    <img src="{{ url_for('static', filename='assets/chart.png') }}"
+         class="btn-icon">
+    Mostrar resultados
+  </button>
+
+
+
+
+<script>
+
+const SAVE_URL = "{{ url_for('save_data') }}";
+const RESULTS_URL = "{{ url_for('results') }}";
+
+/* Inventario */
+
+    const presetData = [
+      {
+        processName: "Fabricación Poliéster PVC (por metro cuadrado)",
+        materials: [
+          { descripcion: "Electricidad", cantidad: -0.175, uds: "kWh", io: "I", ecamb: "Amb", demand: false },
+          { descripcion: "Gas natural", cantidad: -2.510, uds: "m³", io: "I", ecamb: "Amb", demand: false },
+          { descripcion: "Agua", cantidad: -0.475, uds: "m³", io: "I", ecamb: "Amb", demand: false },
+          { descripcion: "VOC", cantidad: 0.000022, uds: "kg", io: "O", ecamb: "Amb", demand: false },
+          { descripcion: "Óxidos de Nitrógeno", cantidad: 0.000037, uds: "kg", io: "O", ecamb: "Amb", demand: false },
+          { descripcion: "Poliéster PVC", cantidad: 1.0, uds: "m²", io: "O", ecamb: "EC", demand: true }
+        ]
+      },
+      {
+        processName: "Transporte de velaria",
+        materials: [
+          { descripcion: "Combustible", cantidad: -30, uds: "L", io: "I", ecamb: "Amb", demand: false },
+          { descripcion: "Dióxido de Carbono", cantidad: 12.0, uds: "kg", io: "O", ecamb: "Amb", demand: false },
+          { descripcion: "Óxidos de Nitrógeno", cantidad: 0.024, uds: "kg", io: "O", ecamb: "Amb", demand: false },
+          { descripcion: "carga transportada", cantidad: 24.00, uds: "kg", io: "O", ecamb: "EC", demand: true }
+        ]
+      }
+    ];
+
+
+function renderProcess(processData) {
+  const container = document.createElement("div");
+  container.classList.add("process-block");
+
+  const processIndex = document.querySelectorAll(".process-block").length + 1;
+
+  container.innerHTML = `
+    <h3>Proceso ${processIndex}: 
+      <input type="text" class="processName"
+             value="${processData.processName || 'Nuevo proceso'}">
+    </h3>
+
+    <table class="materialsTable">
+      <thead>
+        <tr>
+          <th>Descripción</th>
+          <th>Cant.</th>
+          <th>UDS</th>
+          <th>I / O</th>
+          <th>Amb / EC</th>
+          <th>Vec. Demanda</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+
+    <button class="addRowBtn" onclick="addRow(this)">
+      <img src="{{ url_for('static', filename='assets/plus.png') }}"
+           alt="Añadir ítem"
+           class="btn-icon">
+      Añadir ítem
+    </button>
+
+    <hr>
+  `;
+
+  document.getElementById("processesContainer").appendChild(container);
+
+  const tbody = container.querySelector("tbody");
+
+  processData.materials.forEach(item => {
+    addMaterialRow(tbody, item, processData.processName);
+  });
+}
+
+function goToResults() {
+
+    const sessionId = localStorage.getItem("session_id");
+
+    if (!sessionId) {
+        alert("Debes guardar el proyecto primero.");
+        return;
+    }
+
+    window.location.href = `/results?session_id=${sessionId}`;
+}
+
+
+function addMaterialRow(tbody, item, processName) {
+  const row = document.createElement("tr");
+
+  const currentIndex = tbody.querySelectorAll("tr").length;
+
+  const checkedEC = item.ecamb === "EC" ? "checked" : "";
+  const checkedDemand = item.demand ? "checked" : "";
+
+  row.innerHTML = `
+    <td><input type="text" value="${item.descripcion}"></td>
+    <td><input type="number" lang="en" step="0.01" value="${item.cantidad}"></td>
+    <td>
+      <select>
+        <option value="kg" ${item.uds === "kg" ? "selected" : ""}>kg</option>
+        <option value="m" ${item.uds === "m" ? "selected" : ""}>m</option>
+        <option value="cm" ${item.uds === "cm" ? "selected" : ""}>cm</option>
+        <option value="L" ${item.uds === "L" ? "selected" : ""}>L</option>
+        <option value="kWh" ${item.uds === "kWh" ? "selected" : ""}>kWh</option>
+        <option value="MJ" ${item.uds === "MJ" ? "selected" : ""}>MJ</option>
+        <option value="μg/(g·h)" ${item.uds === "μg/(g·h)" ? "selected" : ""}>μg/(g·h)</option>
+        <option value="m³" ${item.uds === "m³" ? "selected" : ""}>m³</option>
+        <option value="m²" ${item.uds === "m²" ? "selected" : ""}>m²</option>
+        <option value="unidad" ${item.uds === "unidad" ? "selected" : ""}>unidad</option>
+      </select>
+    </td>
+    <td>
+      <select>
+        <option value="I" ${item.io === "I" ? "selected" : ""}>I</option>
+        <option value="O" ${item.io === "O" ? "selected" : ""}>O</option>
+      </select>
+    </td>
+    <td>
+      <label class="switch">
+        <input type="checkbox" ${checkedEC}>
+        <span class="slider"></span>
+      </label>
+    </td>
+    <td>
+      <input type="checkbox"
+             class="demand-toggle"
+             onchange="updateDemandVector(this)"
+             ${checkedDemand}>
+    </td>
+    <td>
+      <button class="deleteBtn" onclick="deleteRow(this)">
+        <img src="{{ url_for('static', filename='assets/trash.png') }}"
+             alt="Eliminar"
+             style="width:16px;">
+      </button>
+    </td>
+  `;
+
+  // Indice para ordenar elementos
+  row.dataset.materialIndex = currentIndex.toString();
+  row.dataset.processName = processName;
+
+  tbody.appendChild(row);
+
+  // Anade item a la tabla de vector demanda
+  if (item.demand) {
+    const processBlocks = Array.from(document.querySelectorAll(".process-block"));
+    const processBlock = row.closest(".process-block");
+    const processOrderIndex = processBlocks.indexOf(processBlock);
+
+    addToDemandVector(
+      processName,
+      item.descripcion,
+      item.uds,
+      processOrderIndex,
+      parseInt(row.dataset.materialIndex)
+    );
+
+    sortDemandVector();
+  }
+}
+
+function addProcess() { renderProcess({ processName: "Nuevo proceso", materials: [] }); }
+
+function addRow(button) {
+      const table = button.closest(".process-block").querySelector("tbody");
+      addMaterialRow(table, { descripcion: "", cantidad: 0, uds: "kg", io: "I", ecamb: "EC", demand: false }, "");
+    }
+
+    function deleteRow(button) {
+      const row = button.closest("tr");
+      const toggle = row.querySelector(".demand-toggle");
+      if (toggle && toggle.checked) removeFromDemandVector(row);
+      row.remove();
+      const tbody = button.closest(".process-block").querySelector("tbody");
+      Array.from(tbody.querySelectorAll("tr")).forEach((r, i) => r.dataset.materialIndex = i.toString());
+      sortDemandVector();
+    }
+
+function saveTable() {
+  const processes = [];
+  document.querySelectorAll(".process-block").forEach(block => {
+    const processName = block.querySelector(".processName").value;
+    const rows = block.querySelectorAll("tbody tr");
+    const materials = [];
+
+    rows.forEach(row => {
+      let descripcion = row.cells[0].querySelector("input").value;
+      let cantidad = parseFloat(row.cells[1].querySelector("input").value) || 0;
+      let uds = row.cells[2].querySelector("select").value;
+      let io = row.cells[3].querySelector("select").value;
+      let ecamb = row.cells[4].querySelector("input[type='checkbox']").checked ? "EC" : "Amb";
+      let demand = row.cells[5].querySelector(".demand-toggle").checked;
+      materials.push({ descripcion, cantidad, uds, io, ecamb, demand });
+    });
+
+    processes.push({ processName, materials });
+  });
+
+  // Lee vector de demanda
+  const demandVector = [];
+  document.querySelectorAll("#demandTable tbody tr").forEach(tr => {
+    const proceso = tr.dataset.process;
+    const descripcion = tr.dataset.descripcion;
+    const uds = tr.cells[2].textContent;
+    const cantidad = parseFloat(tr.cells[3].querySelector("input").value) || 0;
+    demandVector.push({ proceso, descripcion, uds, cantidad });
+  });
+
+  const projectName = document.getElementById("projectName").value || "Proyecto sin nombre";
+  const payload = { projectName, processes, demandVector };
+
+  const statusDiv = document.getElementById("status");
+  statusDiv.innerHTML = `Guardando...`;
+
+fetch("{{ url_for('save_data') }}", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(payload)
+})
+.then(res => res.json())
+.then(result => {
+
+  // 
+  if (result.session_id) {
+      localStorage.setItem("session_id", result.session_id);
+  }
+
+  statusDiv.innerHTML = `
+    <img src="{{ url_for('static', filename='assets/check.png') }}"
+         alt="ok"
+         style="width:16px; vertical-align:middle;">
+    Guardado<br>
+    <img src="{{ url_for('static', filename='assets/check.png') }}"
+         alt="ok"
+         style="width:16px; vertical-align:middle;">
+    ${result.message}
+  `;
+
+  document.getElementById("displayBtn").disabled = false;
+})
+
+.catch(err => {
+  statusDiv.innerHTML = `
+    <img src="{{ url_for('static', filename='assets/x.png') }}"
+         alt="error"
+         style="width:16px; vertical-align:middle;">
+    Error al guardar
+  `;
+  console.error(err);
+});
+
+}
+    // Vector de demanda (func)
+    function updateDemandVector(toggle) {
+      const row = toggle.closest("tr");
+      const processBlock = toggle.closest(".process-block");
+      const processName = processBlock.querySelector(".processName").value;
+      const desc = row.cells[0].querySelector("input").value;
+      const uds = row.cells[2].querySelector("select").value;
+
+      const materialIndex = Array.from(processBlock.querySelectorAll("tbody tr")).indexOf(row);
+      const processOrderIndex = Array.from(document.querySelectorAll(".process-block")).indexOf(processBlock);
+
+      if (toggle.checked) {
+        addToDemandVector(processName, desc, uds, processOrderIndex, materialIndex);
+      } else {
+        removeFromDemandVectorBySource(processOrderIndex, materialIndex, processName, desc);
+      }
+
+      sortDemandVector();
+    }
+
+    function addToDemandVector(processName, desc, uds, procOrderIdx, materialIdx) {
+      const tbody = document.querySelector("#demandTable tbody");
+
+      const exists = [...tbody.querySelectorAll("tr")].some(tr =>
+        tr.dataset.procOrder === String(procOrderIdx) && tr.dataset.matIndex === String(materialIdx)
+      );
+      if (exists) return;
+
+      const tr = document.createElement("tr");
+      tr.classList.add("fade-in");
+      tr.dataset.process = processName;
+      tr.dataset.descripcion = desc;
+
+      tr.dataset.procOrder = String(procOrderIdx);
+      tr.dataset.matIndex = String(materialIdx);
+
+      tr.innerHTML = `<td>${processName}</td><td>${desc}</td><td>${uds}</td><td><input type="number" step="0.01" placeholder="0.00"></td>`;
+      tbody.appendChild(tr);
+    }
+
+    function removeFromDemandVectorBySource(procOrderIdx, materialIdx, processName, desc) {
+      const tbody = document.querySelector("#demandTable tbody");
+      const rows = Array.from(tbody.querySelectorAll("tr"));
+      for (const tr of rows) {
+        if (tr.dataset.procOrder === String(procOrderIdx) && tr.dataset.matIndex === String(materialIdx)) {
+          tr.remove();
+          return;
+        }
+      }
+
+      tbody.querySelectorAll("tr").forEach(tr => {
+        if (tr.dataset.process === processName && tr.dataset.descripcion === desc) tr.remove();
+      });
+    }
+
+    function removeFromDemandVector(row) {
+      const processName = row.closest(".process-block").querySelector(".processName").value;
+      const desc = row.cells[0].querySelector("input").value;
+      const tbody = document.querySelector("#demandTable tbody");
+      tbody.querySelectorAll("tr").forEach(tr => {
+        if (tr.dataset.process === processName && tr.dataset.descripcion === desc) tr.remove();
+      });
+    }
+
+    function sortDemandVector() {
+      const tbody = document.querySelector("#demandTable tbody");
+      const rows = Array.from(tbody.querySelectorAll("tr"));
+
+      const processBlocks = Array.from(document.querySelectorAll(".process-block"));
+      rows.forEach(tr => {
+        if (typeof tr.dataset.procOrder === "undefined" || tr.dataset.procOrder === "") {
+          // find indices
+          const procName = tr.dataset.process;
+          let found = false;
+          for (let pi = 0; pi < processBlocks.length; pi++) {
+            const pblock = processBlocks[pi];
+            const pname = pblock.querySelector(".processName").value;
+            if (pname === procName) {
+              const materialRows = Array.from(pblock.querySelectorAll("tbody tr"));
+              for (let mi = 0; mi < materialRows.length; mi++) {
+                const mr = materialRows[mi];
+                const desc = mr.cells[0].querySelector("input").value;
+                if (desc === tr.dataset.descripcion) {
+                  tr.dataset.procOrder = String(pi);
+                  tr.dataset.matIndex = String(mi);
+                  found = true;
+                  break;
+                }
+              }
+            }
+            if (found) break;
+          }
+          if (!found) {
+            // 
+            tr.dataset.procOrder = String(9999);
+            tr.dataset.matIndex = String(9999);
+          }
+        }
+      });
+
+      rows.sort((a, b) => {
+        const pa = parseInt(a.dataset.procOrder, 10);
+        const pb = parseInt(b.dataset.procOrder, 10);
+        if (pa !== pb) return pa - pb;
+        const ma = parseInt(a.dataset.matIndex, 10);
+        const mb = parseInt(b.dataset.matIndex, 10);
+        return ma - mb;
+      });
+
+      rows.forEach(r => tbody.appendChild(r));
+    }
+
+    // 
+    window.onload = () => presetData.forEach(p => renderProcess(p));
+
+
+
+</script>
+
+</body>
+</html>

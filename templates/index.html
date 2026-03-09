@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Ciclo de Vida - Inicio</title>
+  <style>
+  body {
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: url("{{ url_for('static', filename='assets/HOJAS.png') }}") no-repeat center center/cover;
+    position: relative;
+    font-family: Arial, sans-serif;
+  }
+    body::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(0,150,136,0.7); /* turquoise rgba */
+      z-index: 0;
+    }
+    .container {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      color: white;
+    }
+    h1 {
+      font-size: 60px;
+      margin: 0;
+    }
+    h3 {
+      margin: 0;
+      font-weight: normal;
+    }
+    .button {
+      margin-top: 40px;
+      padding: 12px 40px;
+      background-color: white;
+      color: #009688;
+      font-weight: bold;
+      border: none;
+      border-radius: 30px;
+      cursor: pointer;
+      font-size: 16px;
+      text-decoration: none; 
+      display: inline-block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>CICLO</h1>
+    <h3>DE VIDA</h3>
+    <a href="{{ url_for('menu') }}" class="button">INICIAR</a>
+  </div>
+</body>
+</html>

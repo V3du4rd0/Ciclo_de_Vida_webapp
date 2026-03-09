@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Ciclo de Vida - Menu</title>
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: white;
+      font-family: Arial, sans-serif;
+    }
+
+    .header {
+      width: 100%;
+      height: 40%;
+      background: url("{{ url_for('static', filename='assets/HOJAS.png') }}") no-repeat center center/cover;
+      position: relative;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .header::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: rgba(0,150,136,0.7);
+      z-index: 0;
+    }
+
+    .header-content {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      color: white;
+    }
+
+    h1 {
+      font-size: 60px;
+      margin: 0;
+    }
+
+    h3 {
+      margin: 0;
+      font-weight: normal;
+    }
+
+    .menu {
+      margin-top: 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      width: 80%;
+      align-items: center;
+    }
+
+    .button {
+      width: 80%;
+      max-width: 300px;
+      padding: 20px;
+      background-color: #00bfa5;
+      color: white;
+      font-weight: bold;
+      border: none;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 18px;
+      text-align: center;
+      text-decoration: none;
+      display: block;
+    }
+
+    .button .icon {
+      display: block;
+      font-size: 30px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-content">
+      <h1>CICLO</h1>
+      <h3>DE VIDA</h3>
+    </div>
+  </div>
+
+  <div class="menu">
+    <a href="{{ url_for('nuevo') }}" class="button">
+      NUEVO PROYECTO
+      <span class="icon">+</span>
+    </a>
+
+    <a href="{{ url_for('ejemplos') }}" class="button">
+      EJEMPLOS
+    </a>
+  </div>
+</body>
+</html>

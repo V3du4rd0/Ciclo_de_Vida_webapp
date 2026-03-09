@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Resultados</title>
+
+  <!-- Third Party Libraries -->
+  <script src="{{ url_for('static', filename='js/chart.min.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/numeric.min.js') }}"></script>
+  <script async src="{{ url_for('static', filename='js/mathjax/es5/tex-mml-chtml.js') }}"></script>
+
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    h2, h3 { margin-top: 30px; }
+
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background: #f4f4f4; }
+
+    #resultChart { margin-top: 20px; }
+
+    .latex-matrix { font-size: 1.3em; margin: 12px 0; }
+
+    .impact-section { border: 1px solid #999; border-radius: 6px; margin: 10px 0; overflow: hidden; }
+    .impact-header { background: #e6ecf0; padding: 10px; cursor: pointer; }
+    .impact-content { padding: 10px; background: #f9fbfc; display: none; }
+
+    .impact-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    .impact-table td { border: 1px solid #ccc; padding: 5px; }
+
+    .home-container { margin-top: 60px; text-align: center; }
+    .home-icon { width: 50px; height: 50px; cursor: pointer; transition: transform 0.2s; }
+    .home-icon:hover { transform: scale(1.1); }
+  </style>
+</head>
+
+<body>
+
+<h2>Inventario Procesado</h2>
+<table id="resultsTable">
+  <thead>
+    <tr>
+      <th>Descripción</th>
+      <th>Cantidad</th>
+      <th>UDS</th>
+      <th>I / O</th>
+      <th>EC / Amb</th>
+    </tr>
+  </thead>
+  <tbody></tbody>
+</table>
+
+<h2>Resumen Gráfico</h2>
+<canvas id="resultChart" width="800" height="400"></canvas>
+
+<h3>Matriz tecnológica A, de Intervención B, y Vector de demanda v</h3>
+<div id="matricesContainer"></div>
+
+<h2>Impacto ambiental (Solución g = B A⁻¹ v)</h2>
+<div id="linearSystem"></div>
+
+<h4>Consulta en Base de Datos</h4>
+<div id="impactContainer"></div>
+
+<div class="home-container">
+  <a href="{{ url_for('menu') }}">
+    <img src="{{ url_for('static', filename='assets/homeIcon.png') }}"
+         alt="Home"
+         class="home-icon">
+  </a>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", async function () {
+
+  const sessionId = "{{ session_id }}";
+
+  try {
+    const res = await fetch(`/results_data?session_id=${sessionId}`);
+    const result = await res.json();
+    const data = result.data || [];
+
+    const tbody = document.querySelector("#resultsTable tbody");
+    tbody.innerHTML = "";
+
+    data.forEach(row => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${row.descripcion}</td>
+        <td>${row.cantidad}</td>
+        <td>${row.uds}</td>
+        <td>${row.io}</td>
+        <td>${row.ecamb}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    if (data.length > 0) {
+
+      const ctx = document.getElementById('resultChart').getContext('2d');
+
+      const labels = data.map(d => `${d.descripcion} (${d.uds})`);
+      const rawQuantities = data.map(d => parseFloat(d.cantidad) || 0);
+
+      const maxVal = Math.max(...rawQuantities.map(Math.abs)) || 1;
+      const quantities = rawQuantities.map(v => v / maxVal);
+
+      const backgroundColors = data.map(d =>
+        d.ecamb === "EC"
+          ? "rgba(54, 162, 235, 0.5)"
+          : "rgba(255, 99, 132, 0.5)"
+      );
+
+      const borderColors = data.map(d =>
+        d.ecamb === "EC"
+          ? "rgba(54, 162, 235, 1)"
+          : "rgba(255, 99, 132, 1)"
+      );
+
+      new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label: 'Cantidad (normalizada)',
+            data: quantities,
+            backgroundColor: backgroundColors,
+            borderColor: borderColors,
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false },
+            title: {
+              display: true,
+              text: 'Variables Económicas (Azul) y Ambientales (Rojo)',
+              font: { size: 16 }
+            },
+            tooltip: {
+              callbacks: {
+                label: context => {
+                  const item = data[context.dataIndex];
+                  return ` ${item.descripcion}: ${item.cantidad} ${item.uds} (${item.ecamb})`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { autoSkip: false, maxRotation: 45 }
+            },
+            y: {
+              beginAtZero: true,
+              suggestedMax: Math.max(...quantities) * 1.2,
+              suggestedMin: Math.min(...quantities) * 1.2
+            }
+          }
+        }
+      });
+    }
+
+  } catch (err) {
+    console.error("Error inventario:", err);
+  }
+
+  try {
+    const response = await fetch(`/get_matrices?session_id=${sessionId}`);
+    const data = await response.json();
+
+    const matricesContainer = document.getElementById("matricesContainer");
+    const linearContainer = document.getElementById("linearSystem");
+
+    if (!data.A || !data.B || !data.v) {
+      matricesContainer.innerHTML =
+        "<p><em>No se encontraron matrices.</em></p>";
+    } else {
+
+      const toLatexMatrix = M =>
+        `\\begin{bmatrix}${M.map(r => r.join(" & ")).join(" \\\\ ")}\\end{bmatrix}`;
+
+      const toLatexVector = v =>
+        `\\begin{bmatrix}${v.join(" \\\\ ")}\\end{bmatrix}`;
+
+      matricesContainer.innerHTML = `
+        <div class="latex-matrix">$$ A = ${toLatexMatrix(data.A)} $$</div>
+        <div class="latex-matrix">$$ B = ${toLatexMatrix(data.B)} $$</div>
+        <div class="latex-matrix">$$ v = ${toLatexVector(data.v)} $$</div>
+      `;
+
+      if (window.MathJax) {
+        await MathJax.typesetPromise();
+      }
+    }
+
+    if (!data.w || !data.amb_vars) {
+      linearContainer.innerHTML =
+        "<i>No se pudo cargar el vector ambiental.</i>";
+    } else {
+
+      let html = "<b>Vector de flujo ambiental g:</b><br>";
+      html += "<table border='1' style='border-collapse: collapse;'>";
+      html += "<tr><th>Variable ambiental</th><th>Valor</th></tr>";
+
+      for (let i = 0; i < data.amb_vars.length; i++) {
+        html += `<tr><td>${data.amb_vars[i]}</td><td>${data.w[i]}</td></tr>`;
+      }
+
+      html += "</table>";
+
+      linearContainer.innerHTML = html;
+    }
+
+  } catch (err) {
+    console.error("Error matrices:", err);
+  }
+
+  try {
+    const res = await fetch(`/impact_data?session_id=${sessionId}`);
+    const data = await res.json();
+    const container = document.getElementById("impactContainer");
+
+    data.forEach(item => {
+
+      const section = document.createElement("div");
+      section.className = "impact-section";
+
+      const header = document.createElement("div");
+      header.className = "impact-header";
+      header.innerHTML =
+        `<b>${item.spanish}</b>
+         <span style="opacity:0.7">
+         (${item.english}, ${item.dataset})
+         </span>`;
+
+      const content = document.createElement("div");
+      content.className = "impact-content";
+
+      if (item.matches.length > 0) {
+        item.matches.forEach(match => {
+
+          const table = document.createElement("table");
+          table.className = "impact-table";
+
+          for (const [key, val] of Object.entries(match)) {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `<td><b>${key}</b></td><td>${val}</td>`;
+            table.appendChild(tr);
+          }
+
+          content.appendChild(table);
+        });
+      } else {
+        content.innerHTML = "<i>No hay coincidencias.</i>";
+      }
+
+      header.onclick = () => {
+        content.style.display =
+          content.style.display === "none" ? "block" : "none";
+      };
+
+      section.appendChild(header);
+      section.appendChild(content);
+      container.appendChild(section);
+    });
+
+  } catch (err) {
+    console.error("Error impacto:", err);
+  }
+
+});
+</script>
+
+</body>
+</html>
