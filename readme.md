@@ -93,7 +93,6 @@ flask run --host=0.0.0.0 --port=5000
   </tr>
 </table>
 
-
 ### Licencia
 
 Distribución de la WebApp bajo licencia GNU2.
@@ -105,3 +104,7 @@ Este proyecto depende de las siguientes librerías de terceros (_third-party lib
 * Numeric.js (static/js/numeric.min.js)
 
 Cuyas respectivas licencias incluimos en el directorio LICENSES.
+
+### Agradecimientos
+
+Proyecto apoyado por PAPIME PE103824.
