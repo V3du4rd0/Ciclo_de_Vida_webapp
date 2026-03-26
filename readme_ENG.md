@@ -105,3 +105,7 @@ This project depends on the following third-party libraries:
 * Numeric.js (static/js/numeric.min.js)
 
 Copies of their corresponding license files are included in the LICENSES directory.
+
+### Acknowledgements
+
+This project was supported by PAPIME program No. PE103824.
